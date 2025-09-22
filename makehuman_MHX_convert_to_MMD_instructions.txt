@@ -1,0 +1,2 @@
+See this pdf tutorial:
+"Tutorial_ How to convert a 3D character model to MMD.pdf"

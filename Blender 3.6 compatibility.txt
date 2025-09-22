@@ -1,0 +1,21 @@
+MMD Tools Helper - Blender 3.6 兼容性状态
+
+截至当前版本，mmd_tools_helper 已完全兼容 Blender 3.6 及更高版本。
+
+支持的 Blender 版本：
+- Blender 3.6.0 及更高版本
+
+主要更新内容：
+- 更新了所有 UI 面板以使用新的侧边栏区域（UI 区域）
+- 修复了废弃的 Blender Python API 调用
+- 更新了插件注册系统以使用现代方法
+- 修复了场景对象操作 API
+- 更新了用户偏好设置 API
+- 修复了灯光系统 API 变更
+
+注意：
+- 该插件不再支持 Blender 2.79b 或更早版本
+- 所有面板现在位于 3D 视图的侧边栏（N 面板）中
+- 功能保持不变，但使用了更新的 Blender 3.6 API
+
+如需详细的迁移信息，请参阅 blender_3.6_migration_summary.md 文件。
