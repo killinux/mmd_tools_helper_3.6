@@ -1,323 +1,270 @@
 import bpy
 import math
-from . import model
+from . import model  # 依赖外部model模块，需确保该模块存在且适配3.6
 
 class Add_MMD_Hand_Arm_IK_Panel(bpy.types.Panel):
-	"""Add hand and arm IK bones and constraints to active MMD model"""
-	bl_idname = "OBJECT_PT_mmd_add_hand_arm_ik"
-	bl_label = "Add Hand Arm IK to MMD model"
-	bl_space_type = "VIEW_3D"
-	bl_region_type = "TOOLS"
-	bl_category = "mmd_tools_helper"
+    """Add hand and arm IK bones and constraints to active MMD model"""
+    bl_idname = "OBJECT_PT_mmd_add_hand_arm_ik"
+    bl_label = "Add Hand Arm IK to MMD model"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"  # Blender 2.8+使用UI区域
+    bl_category = "mmd_tools_helper"
 
-	def draw(self, context):
-		layout = self.layout
-		row = layout.row()
+    def draw(self, context):
+        layout = self.layout
+        row = layout.row()
 
-		row.label(text="Add hand arm IK to MMD model", icon="ARMATURE_DATA")
-		row = layout.row()
-		row.operator("object.add_hand_arm_ik", text = "Add hand_arm IK to MMD model")
-		row = layout.row()
+        row.label(text="Add hand arm IK to MMD model", icon="ARMATURE_DATA")
+        row = layout.row()
+        row.operator("object.add_hand_arm_ik", text = "Add hand_arm IK to MMD model")
+        row = layout.row()
 
 
 def clear_IK(context):
-	IK_target_bones = []
-	IK_target_tip_bones = []
-	bpy.context.scene.objects.active = model.findArmature(bpy.context.active_object)
-	bpy.ops.object.mode_set(mode='POSE')
-	english = ["elbow_L", "elbow_R", "wrist_L", "wrist_R", "middle1_L", "middle1_R"]
-	japanese = ["左ひじ", "右ひじ", "左手首", "右手首", "左中指１", "右中指１"]
-	japanese_L_R = ["ひじ.L", "ひじ.R", "手首.L", "手首.R", "中指１.L", "中指１.R"]
-	# IK_BONE_NAMES = ["elbow IK_L", "elbow IK_R", "middle1 IK_L", "middle1 IK_R"]
-	arm_hand_bones = english + japanese + japanese_L_R
-	for b in bpy.context.active_object.pose.bones.keys():
-		if b in arm_hand_bones:
-			for c in bpy.context.active_object.pose.bones[b].constraints:
-				if c.type == "IK":
-					print("c.target = ", c.target)
-					if c.target == bpy.context.scene.objects.active:
-						if c.subtarget is not None:
-							print("c.subtarget = ", c.subtarget)
-							if c.subtarget not in IK_target_bones:
-								IK_target_bones.append(c.subtarget)
-	for b in IK_target_bones:
-		for c in bpy.context.active_object.pose.bones[b].children:
-			if c.name not in IK_target_tip_bones:
-				IK_target_tip_bones.append(c.name)
-	bones_to_be_deleted = set(IK_target_bones + IK_target_tip_bones)
-	print("bones to be deleted = ", bones_to_be_deleted)
-	bpy.ops.object.mode_set(mode='EDIT')
-	for b in bones_to_be_deleted:
-		bpy.context.active_object.data.edit_bones.remove(bpy.context.active_object.data.edit_bones[b])
-	bpy.ops.object.mode_set(mode='POSE')
-	for b in bpy.context.active_object.pose.bones.keys():
-		if b in arm_hand_bones:
-			for c in bpy.context.active_object.pose.bones[b].constraints:
-				bpy.context.active_object.pose.bones[b].constraints.remove(c)
+    IK_target_bones = []
+    IK_target_tip_bones = []
+    armature = model.findArmature(context.active_object)
+    context.view_layer.objects.active = armature
+    bpy.ops.object.mode_set(mode='POSE')
+    
+    english = ["elbow_L", "elbow_R", "wrist_L", "wrist_R", "middle1_L", "middle1_R"]
+    japanese = ["左ひじ", "右ひじ", "左手首", "右手首", "左中指１", "右中指１"]
+    japanese_L_R = ["ひじ.L", "ひじ.R", "手首.L", "手首.R", "中指１.L", "中指１.R"]
+    arm_hand_bones = english + japanese + japanese_L_R
+    
+    for b_name in arm_hand_bones:
+        if b_name in armature.pose.bones:
+            bone = armature.pose.bones[b_name]
+            for constraint in bone.constraints[:]:
+                if constraint.type == "IK":
+                    print("c.target = ", constraint.target)
+                    if constraint.target == armature:
+                        if constraint.subtarget is not None:
+                            print("c.subtarget = ", constraint.subtarget)
+                            if constraint.subtarget not in IK_target_bones:
+                                IK_target_bones.append(constraint.subtarget)
+    
+    for b_name in IK_target_bones:
+        if b_name in armature.pose.bones:
+            for child_bone in armature.pose.bones[b_name].children:
+                if child_bone.name not in IK_target_tip_bones:
+                    IK_target_tip_bones.append(child_bone.name)
+    
+    bones_to_be_deleted = set(IK_target_bones + IK_target_tip_bones)
+    print("bones to be deleted = ", bones_to_be_deleted)
+    
+    bpy.ops.object.mode_set(mode='EDIT')
+    edit_bones = armature.data.edit_bones
+    for b_name in bones_to_be_deleted:
+        if b_name in edit_bones:
+            edit_bones.remove(edit_bones[b_name])
+    
+    bpy.ops.object.mode_set(mode='POSE')
+    for b_name in arm_hand_bones:
+        if b_name in armature.pose.bones:
+            bone = armature.pose.bones[b_name]
+            for constraint in bone.constraints[:]:
+                bone.constraints.remove(constraint)
 
 
-def armature_diagnostic():
-	ENGLISH_ARM_BONES = ["elbow_L", "elbow_R", "wrist_L", "wrist_R", "middle1_L", "middle1_R"]
-	JAPANESE_ARM_BONES = ["左ひじ", "右ひじ", "左手首", "右手首", "左中指１", "右中指１"]
-	IK_BONE_NAMES = ["elbow IK_L", "elbow IK_R", "middle1 IK_L", "middle1 IK_R"]
-	ENGLISH_OK = True
-	JAPANESE_OK = True
+def armature_diagnostic(armature):
+    ENGLISH_ARM_BONES = ["elbow_L", "elbow_R", "wrist_L", "wrist_R", "middle1_L", "middle1_R"]
+    JAPANESE_ARM_BONES = ["左ひじ", "右ひじ", "左手首", "右手首", "左中指１", "右中指１"]
+    IK_BONE_NAMES = ["elbow IK_L", "elbow IK_R", "middle1 IK_L", "middle1 IK_R"]
+    ENGLISH_OK = True
+    JAPANESE_OK = True
 
-	print('\n\n\n', 'These English bones are needed to add hand IK:', '\n')
-	print(ENGLISH_ARM_BONES, '\n')
-	for b in ENGLISH_ARM_BONES:
-		if b not in bpy.context.active_object.data.bones.keys():
-			ENGLISH_OK = False
-			print('This bone is not in this armature:', '\n', b)
-	if ENGLISH_OK == True:
-		print('OK! All English-named bones are present which are needed to add hand IK')
+    print('\n\n\nThese English bones are needed to add hand IK:\n')
+    print(ENGLISH_ARM_BONES, '\n')
+    for b_name in ENGLISH_ARM_BONES:
+        if b_name not in armature.data.bones:
+            ENGLISH_OK = False
+            print(f'This bone is not in this armature: {b_name}')
+    if ENGLISH_OK:
+        print('OK! All English-named bones are present')
 
-	print('\n', 'OR These Japanese bones are needed to add IK:', '\n')
-	print(JAPANESE_ARM_BONES, '\n')
-	for b in JAPANESE_ARM_BONES:
-		if b not in bpy.context.active_object.data.bones.keys():
-			JAPANESE_OK = False
-			print('This bone is not in this armature:', '\n', b)
-	if JAPANESE_OK == True:
-		print('OK! All Japanese-named bones are present which are needed to add hand IK', '\n')
+    print('\nOR These Japanese bones are needed to add IK:\n')
+    print(JAPANESE_ARM_BONES, '\n')
+    for b_name in JAPANESE_ARM_BONES:
+        if b_name not in armature.data.bones:
+            JAPANESE_OK = False
+            print(f'This bone is not in this armature: {b_name}')
+    if JAPANESE_OK:
+        print('OK! All Japanese-named bones are present\n')
 
-	print('\n', 'hand IK bones which are already in the armature = ', '\n')
-	for b in IK_BONE_NAMES:
-		if b in bpy.context.active_object.data.bones.keys():
-			print('This armature appears to already have hand IK bones. This bone seems to be a hand IK bone:', '\n', b)
+    print('\nHand IK bones already in the armature:\n')
+    for b_name in IK_BONE_NAMES:
+        if b_name in armature.data.bones:
+            print(f'This IK bone already exists: {b_name}')
+
 
 def main(context):
-	bpy.context.scene.objects.active = model.findArmature(bpy.context.active_object)
+    armature = model.findArmature(context.active_object)
+    context.view_layer.objects.active = armature
+    bpy.ops.object.mode_set(mode='OBJECT')
 
-	#Lists of possible names of elbow, wrist and middle1 bones
-	ARM_LEFT_BONE = ["左ひじ", "ひじ.L", "elbow_L"]
-	ARM_RIGHT_BONE = ["右ひじ", "ひじ.R", "elbow_R"]
-	ELBOW_LEFT_BONE = ["左手首", "手首.L", "wrist_L"]
-	ELBOW_RIGHT_BONE = ["右手首", "手首.R", "wrist_R"]
-	WRIST_LEFT_BONE = ["左中指１", "中指１.L", "middle1_L"]
-	WRIST_RIGHT_BONE = ["右中指１", "中指１.R", "middle1_R"]
+    ARM_LEFT_BONE = ["左ひじ", "ひじ.L", "elbow_L"]
+    ARM_RIGHT_BONE = ["右ひじ", "ひじ.R", "elbow_R"]
+    ELBOW_LEFT_BONE = ["左手首", "手首.L", "wrist_L"]
+    ELBOW_RIGHT_BONE = ["右手首", "手首.R", "wrist_R"]
+    WRIST_LEFT_BONE = ["左中指１", "中指１.L", "middle1_L"]
+    WRIST_RIGHT_BONE = ["右中指１", "中指１.R", "middle1_R"]
 
-	print('\n')
-	#Searches through the bones of the active armature and finds the ARM, ELBOW and WRIST bones.
-	for b in bpy.context.active_object.data.bones:
-		if b.name in ARM_LEFT_BONE:
-			ARM_LEFT = b.name
-			print('ARM_LEFT = ', ARM_LEFT)
-		if b.name in ARM_RIGHT_BONE:
-			ARM_RIGHT = b.name
-			print('ARM_RIGHT = ', ARM_RIGHT)
-		if b.name in ELBOW_LEFT_BONE:
-			ELBOW_LEFT = b.name
-			print('ELBOW_LEFT = ', ELBOW_LEFT)
-		if b.name in ELBOW_RIGHT_BONE:
-			ELBOW_RIGHT = b.name
-			print('ELBOW_RIGHT = ', ELBOW_RIGHT)
-		if b.name in WRIST_LEFT_BONE:
-			WRIST_LEFT = b.name
-			print('WRIST_LEFT = ', WRIST_LEFT)
-		if b.name in WRIST_RIGHT_BONE:
-			WRIST_RIGHT = b.name
-			print('WRIST_RIGHT = ', WRIST_RIGHT)
+    ARM_LEFT = ARM_RIGHT = ELBOW_LEFT = ELBOW_RIGHT = WRIST_LEFT = WRIST_RIGHT = None
 
-	#measurements of the length of the elbow bone which will used to calculate the lengths of the IK bones.
-	DOUBLE_LENGTH_OF_ELBOW_BONE = bpy.context.active_object.data.bones[ELBOW_LEFT].length * 2
-	TWENTIETH_LENGTH_OF_ELBOW_BONE = bpy.context.active_object.data.bones[ELBOW_LEFT].length * 0.05
+    print('\nSearching for target bones...')
+    for b in armature.data.bones:
+        if b.name in ARM_LEFT_BONE:
+            ARM_LEFT = b.name
+            print(f'ARM_LEFT = {ARM_LEFT}')
+        if b.name in ARM_RIGHT_BONE:
+            ARM_RIGHT = b.name
+            print(f'ARM_RIGHT = {ARM_RIGHT}')
+        if b.name in ELBOW_LEFT_BONE:
+            ELBOW_LEFT = b.name
+            print(f'ELBOW_LEFT = {ELBOW_LEFT}')
+        if b.name in ELBOW_RIGHT_BONE:
+            ELBOW_RIGHT = b.name
+            print(f'ELBOW_RIGHT = {ELBOW_RIGHT}')
+        if b.name in WRIST_LEFT_BONE:
+            WRIST_LEFT = b.name
+            print(f'WRIST_LEFT = {WRIST_LEFT}')
+        if b.name in WRIST_RIGHT_BONE:
+            WRIST_RIGHT = b.name
+            print(f'WRIST_RIGHT = {WRIST_RIGHT}')
 
-	bpy.ops.object.mode_set(mode='EDIT')
+    missing_bones = []
+    if not ARM_LEFT: missing_bones.append("ARM_LEFT (elbow_L/左ひじ/ひじ.L)")
+    if not ARM_RIGHT: missing_bones.append("ARM_RIGHT (elbow_R/右ひじ/ひじ.R)")
+    if not ELBOW_LEFT: missing_bones.append("ELBOW_LEFT (wrist_L/左手首/手首.L)")
+    if not ELBOW_RIGHT: missing_bones.append("ELBOW_RIGHT (wrist_R/右手首/手首.R)")
+    if not WRIST_LEFT: missing_bones.append("WRIST_LEFT (middle1_L/左中指１/中指１.L)")
+    if not WRIST_RIGHT: missing_bones.append("WRIST_RIGHT (middle1_R/右中指１/中指１.R)")
+    
+    if missing_bones:
+        raise Exception(f"Missing required bones: {', '.join(missing_bones)}")
 
+    elbow_length = armature.data.bones[ELBOW_LEFT].length
+    DOUBLE_LENGTH_OF_ELBOW_BONE = elbow_length * 2
+    TWENTIETH_LENGTH_OF_ELBOW_BONE = elbow_length * 0.05
 
-	# if ARM_LEFT == "左ひじ" or ARM_LEFT == "ひじ.L" or ARM_LEFT == "elbow_L":
+    bpy.ops.object.mode_set(mode='EDIT')
+    edit_bones = armature.data.edit_bones
 
-	#The IK bones are created, with English bone names.
-	bone = bpy.context.active_object.data.edit_bones.new("elbow_IK_L")
-	bone.head = bpy.context.active_object.data.edit_bones[ELBOW_LEFT].head
-	bone.tail = bpy.context.active_object.data.edit_bones[ELBOW_LEFT].head
-	bone.tail.z = bpy.context.active_object.data.edit_bones[ELBOW_LEFT].head.z - DOUBLE_LENGTH_OF_ELBOW_BONE
+    bone_elbow_ik_l = edit_bones.new("elbow_IK_L")
+    bone_elbow_ik_l.head = edit_bones[ELBOW_LEFT].head
+    bone_elbow_ik_l.tail = edit_bones[ELBOW_LEFT].head.copy()
+    bone_elbow_ik_l.tail.z -= DOUBLE_LENGTH_OF_ELBOW_BONE
 
-	bone = bpy.context.active_object.data.edit_bones.new("elbow_IK_R")
-	bone.head = bpy.context.active_object.data.edit_bones[ELBOW_RIGHT].head
-	bone.tail = bpy.context.active_object.data.edit_bones[ELBOW_RIGHT].head
-	bone.tail.z = bpy.context.active_object.data.edit_bones[ELBOW_RIGHT].head.z - DOUBLE_LENGTH_OF_ELBOW_BONE
+    bone_elbow_ik_r = edit_bones.new("elbow_IK_R")
+    bone_elbow_ik_r.head = edit_bones[ELBOW_RIGHT].head
+    bone_elbow_ik_r.tail = edit_bones[ELBOW_RIGHT].head.copy()
+    bone_elbow_ik_r.tail.z -= DOUBLE_LENGTH_OF_ELBOW_BONE
 
-	bone = bpy.context.active_object.data.edit_bones.new("middle1_IK_L")
-	bone.head = bpy.context.active_object.data.edit_bones[WRIST_LEFT].head
-	bone.tail = bpy.context.active_object.data.edit_bones[WRIST_LEFT].head
-	bone.tail.z = bpy.context.active_object.data.edit_bones[WRIST_LEFT].head.z - DOUBLE_LENGTH_OF_ELBOW_BONE
-	print('bone = ', bone)
-	bone.parent = bpy.context.active_object.data.edit_bones["elbow_IK_L"]
-	bone.use_connect = False
+    bone_mid1_ik_l = edit_bones.new("middle1_IK_L")
+    bone_mid1_ik_l.head = edit_bones[WRIST_LEFT].head
+    bone_mid1_ik_l.tail = edit_bones[WRIST_LEFT].head.copy()
+    bone_mid1_ik_l.tail.z -= DOUBLE_LENGTH_OF_ELBOW_BONE
+    bone_mid1_ik_l.parent = edit_bones["elbow_IK_L"]
+    bone_mid1_ik_l.use_connect = False
 
-	bone = bpy.context.active_object.data.edit_bones.new("middle1_IK_R")
-	bone.head = bpy.context.active_object.data.edit_bones[WRIST_RIGHT].head
-	bone.tail = bpy.context.active_object.data.edit_bones[WRIST_RIGHT].head
-	bone.tail.z = bpy.context.active_object.data.edit_bones[WRIST_RIGHT].head.z - DOUBLE_LENGTH_OF_ELBOW_BONE
-	bone.parent = bpy.context.active_object.data.edit_bones["elbow_IK_R"]
-	bone.use_connect = False
+    bone_mid1_ik_r = edit_bones.new("middle1_IK_R")
+    bone_mid1_ik_r.head = edit_bones[WRIST_RIGHT].head
+    bone_mid1_ik_r.tail = edit_bones[WRIST_RIGHT].head.copy()
+    bone_mid1_ik_r.tail.z -= DOUBLE_LENGTH_OF_ELBOW_BONE
+    bone_mid1_ik_r.parent = edit_bones["elbow_IK_R"]
+    bone_mid1_ik_r.use_connect = False
 
-	bone = bpy.context.active_object.data.edit_bones.new("elbow_IK_L_t")
-	bone.head = bpy.context.active_object.data.edit_bones["elbow_IK_L"].head
-	bone.tail = bpy.context.active_object.data.edit_bones["elbow_IK_L"].head
-	bone.tail.y = bone.tail.y + TWENTIETH_LENGTH_OF_ELBOW_BONE
-	bone.parent = bpy.context.active_object.data.edit_bones["elbow_IK_L"]
-	bone.use_connect = False
-	bpy.ops.object.mode_set(mode='POSE')
-	bpy.context.active_object.pose.bones["elbow_IK_L_t"].bone.hide = True
-	if hasattr(bpy.context.active_object.pose.bones["elbow_IK_L_t"], "mmd_bone"):
-		bpy.context.active_object.pose.bones["elbow_IK_L_t"].mmd_bone.is_visible = False
-		bpy.context.active_object.pose.bones["elbow_IK_L_t"].mmd_bone.is_controllable = False
-		bpy.context.active_object.pose.bones["elbow_IK_L_t"].mmd_bone.is_tip = True
-	bpy.ops.object.mode_set(mode='EDIT')
+    def create_tip_bone(parent_name, tip_name, offset_axis, offset_val):
+        tip_bone = edit_bones.new(tip_name)
+        parent_bone = edit_bones[parent_name]
+        tip_bone.head = parent_bone.head
+        tip_bone.tail = parent_bone.head.copy()
+        setattr(tip_bone.tail, offset_axis, getattr(tip_bone.tail, offset_axis) + offset_val)
+        tip_bone.parent = parent_bone
+        tip_bone.use_connect = False
+        bpy.ops.object.mode_set(mode='POSE')
+        pose_bone = armature.pose.bones[tip_name]
+        pose_bone.bone.hide = True
+        if hasattr(pose_bone, "mmd_bone"):
+            pose_bone.mmd_bone.is_visible = False
+            pose_bone.mmd_bone.is_controllable = False
+            pose_bone.mmd_bone.is_tip = True
+        bpy.ops.object.mode_set(mode='EDIT')
 
-	bone = bpy.context.active_object.data.edit_bones.new("elbow_IK_R_t")
-	bone.head = bpy.context.active_object.data.edit_bones["elbow_IK_R"].head
-	bone.tail = bpy.context.active_object.data.edit_bones["elbow_IK_R"].head
-	bone.tail.y = bone.tail.y + TWENTIETH_LENGTH_OF_ELBOW_BONE
-	bone.parent = bpy.context.active_object.data.edit_bones["elbow_IK_R"]
-	bone.use_connect = False
-	bpy.ops.object.mode_set(mode='POSE')
-	bpy.context.active_object.pose.bones["elbow_IK_R_t"].bone.hide = True
-	if hasattr(bpy.context.active_object.pose.bones["elbow_IK_R_t"], "mmd_bone"):
-		bpy.context.active_object.pose.bones["elbow_IK_R_t"].mmd_bone.is_visible = False
-		bpy.context.active_object.pose.bones["elbow_IK_R_t"].mmd_bone.is_controllable = False
-		bpy.context.active_object.pose.bones["elbow_IK_R_t"].mmd_bone.is_tip = True
-	bpy.ops.object.mode_set(mode='EDIT')
+    create_tip_bone("elbow_IK_L", "elbow_IK_L_t", "y", TWENTIETH_LENGTH_OF_ELBOW_BONE)
+    create_tip_bone("elbow_IK_R", "elbow_IK_R_t", "y", TWENTIETH_LENGTH_OF_ELBOW_BONE)
+    create_tip_bone("middle1_IK_L", "middle1_IK_L_t", "z", -TWENTIETH_LENGTH_OF_ELBOW_BONE)
+    create_tip_bone("middle1_IK_R", "middle1_IK_R_t", "z", -TWENTIETH_LENGTH_OF_ELBOW_BONE)
 
-	bone = bpy.context.active_object.data.edit_bones.new("middle1_IK_L_t")
-	bone.head = bpy.context.active_object.data.edit_bones["middle1_IK_L"].head
-	bone.tail = bpy.context.active_object.data.edit_bones["middle1_IK_L"].head
-	bone.tail.z = bone.tail.z - TWENTIETH_LENGTH_OF_ELBOW_BONE
-	bone.parent = bpy.context.active_object.data.edit_bones["middle1_IK_L"]
-	bone.use_connect = False
-	bpy.ops.object.mode_set(mode='POSE')
-	bpy.context.active_object.pose.bones["middle1_IK_L_t"].bone.hide = True
-	if hasattr(bpy.context.active_object.pose.bones["middle1_IK_L_t"], "mmd_bone"):
-		bpy.context.active_object.pose.bones["middle1_IK_L_t"].mmd_bone.is_visible = False
-		bpy.context.active_object.pose.bones["middle1_IK_L_t"].mmd_bone.is_controllable = False
-		bpy.context.active_object.pose.bones["middle1_IK_L_t"].mmd_bone.is_tip = True
-	bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.object.mode_set(mode='POSE')
 
-	bone = bpy.context.active_object.data.edit_bones.new("middle1_IK_R_t")
-	bone.head = bpy.context.active_object.data.edit_bones["middle1_IK_R"].head
-	bone.tail = bpy.context.active_object.data.edit_bones["middle1_IK_R"].head
-	bone.tail.z = bone.tail.z - TWENTIETH_LENGTH_OF_ELBOW_BONE
-	bone.parent = bpy.context.active_object.data.edit_bones["middle1_IK_R"]
-	bone.use_connect = False
-	bpy.ops.object.mode_set(mode='POSE')
-	bpy.context.active_object.pose.bones["middle1_IK_R_t"].bone.hide = True
-	if hasattr(bpy.context.active_object.pose.bones["middle1_IK_R_t"], "mmd_bone"):
-		bpy.context.active_object.pose.bones["middle1_IK_R_t"].mmd_bone.is_visible = False
-		bpy.context.active_object.pose.bones["middle1_IK_R_t"].mmd_bone.is_controllable = False
-		bpy.context.active_object.pose.bones["middle1_IK_R_t"].mmd_bone.is_tip = True
-	bpy.ops.object.mode_set(mode='EDIT')
+    def add_ik_constraint(bone_name, target_subtarget, chain_count, iterations=48):
+        bone = armature.pose.bones[bone_name]
+        ik_const = bone.constraints.new("IK")
+        ik_const.target = armature
+        ik_const.subtarget = target_subtarget
+        ik_const.chain_count = chain_count
+        ik_const.use_tail = True
+        ik_const.iterations = iterations
 
-	bpy.ops.object.mode_set(mode='POSE')
+    add_ik_constraint(ARM_LEFT, "elbow_IK_L", chain_count=2)
+    add_ik_constraint(ARM_RIGHT, "elbow_IK_R", chain_count=2)
+    add_ik_constraint(ELBOW_LEFT, "middle1_IK_L", chain_count=1, iterations=6)
+    add_ik_constraint(ELBOW_RIGHT, "middle1_IK_R", chain_count=1, iterations=6)
 
+    for bone_name in [ARM_LEFT, ARM_RIGHT, ELBOW_LEFT, ELBOW_RIGHT]:
+        if hasattr(armature.pose.bones[bone_name], "mmd_bone"):
+            if "elbow" in bone_name.lower():
+                armature.pose.bones[bone_name].mmd_bone.ik_rotation_constraint = 4
+            else:
+                armature.pose.bones[bone_name].mmd_bone.ik_rotation_constraint = 2
 
-	#Adds IK constraints
-	bpy.context.object.pose.bones[ARM_LEFT].constraints.new("IK")
-	bpy.context.object.pose.bones[ARM_LEFT].constraints["IK"].target = bpy.context.active_object
-	bpy.context.object.pose.bones[ARM_LEFT].constraints["IK"].subtarget = "elbow_IK_L"
-	bpy.context.object.pose.bones[ARM_LEFT].constraints["IK"].chain_count = 2
-	bpy.context.object.pose.bones[ARM_LEFT].constraints["IK"].use_tail = True
-	bpy.context.object.pose.bones[ARM_LEFT].constraints["IK"].iterations = 48
-	# bpy.context.object.pose.bones[ELBOW_LEFT].constraints["IK"].use_location = False
+    if 'IK' not in armature.pose.bone_groups:
+        armature.pose.bone_groups.new(name="IK")
+    ik_group = armature.pose.bone_groups['IK']
 
-	# bpy.context.object.pose.bones[ARM_LEFT].constraints.new("LIMIT_ROTATION")
-	# bpy.context.object.pose.bones[ARM_LEFT].constraints["Limit Rotation"].use_limit_x = True
-	# bpy.context.object.pose.bones[ARM_LEFT].constraints["Limit Rotation"].min_x = math.pi/360 #radians = 0.5 degrees
-	# bpy.context.object.pose.bones[ARM_LEFT].constraints["Limit Rotation"].max_x = math.pi #radians = 180 degrees
-	# bpy.context.object.pose.bones[ARM_LEFT].constraints["Limit Rotation"].owner_space = "POSE"
-	# bpy.context.object.pose.bones[ARM_LEFT].constraints["Limit Rotation"].name = "mmd_ik_limit_override"
-
-
-	bpy.context.object.pose.bones[ARM_RIGHT].constraints.new("IK")
-	bpy.context.object.pose.bones[ARM_RIGHT].constraints["IK"].target = bpy.context.active_object
-	bpy.context.object.pose.bones[ARM_RIGHT].constraints["IK"].subtarget = "elbow_IK_R"
-	bpy.context.object.pose.bones[ARM_RIGHT].constraints["IK"].chain_count = 2
-	bpy.context.object.pose.bones[ARM_RIGHT].constraints["IK"].use_tail = True
-	bpy.context.object.pose.bones[ARM_RIGHT].constraints["IK"].iterations = 48
-	# bpy.context.object.pose.bones[ELBOW_RIGHT].constraints["IK"].use_location = False
-
-	# bpy.context.object.pose.bones[ARM_RIGHT].constraints.new("LIMIT_ROTATION")
-	# bpy.context.object.pose.bones[ARM_RIGHT].constraints["Limit Rotation"].use_limit_x = True
-	# bpy.context.object.pose.bones[ARM_RIGHT].constraints["Limit Rotation"].min_x = math.pi/360 #radians = 0.5 degrees
-	# bpy.context.object.pose.bones[ARM_RIGHT].constraints["Limit Rotation"].max_x = math.pi #radians = 180 degrees
-	# bpy.context.object.pose.bones[ARM_RIGHT].constraints["Limit Rotation"].owner_space = "POSE"
-	# bpy.context.object.pose.bones[ARM_RIGHT].constraints["Limit Rotation"].name = "mmd_ik_limit_override"
-
-	# bpy.context.object.pose.bones[ELBOW_LEFT].constraints.new("DAMPED_TRACK")
-	# bpy.context.object.pose.bones[ELBOW_LEFT].constraints["Damped Track"].target = bpy.context.active_object
-	# bpy.context.object.pose.bones[ELBOW_LEFT].constraints["Damped Track"].subtarget = ARM_LEFT
-	# bpy.context.object.pose.bones[ELBOW_LEFT].constraints["Damped Track"].track_axis = 'TRACK_Y'
-	# bpy.context.object.pose.bones[ELBOW_LEFT].constraints["Damped Track"].name = "mmd_ik_target_override"
-
-
-	bpy.context.object.pose.bones[ELBOW_LEFT].constraints.new("IK")
-	bpy.context.object.pose.bones[ELBOW_LEFT].constraints["IK"].target = bpy.context.active_object
-	bpy.context.object.pose.bones[ELBOW_LEFT].constraints["IK"].subtarget = "middle1_IK_L"
-	bpy.context.object.pose.bones[ELBOW_LEFT].constraints["IK"].chain_count = 1
-	bpy.context.object.pose.bones[ELBOW_LEFT].constraints["IK"].use_tail = True
-	bpy.context.object.pose.bones[ELBOW_LEFT].constraints["IK"].iterations = 6
-	# bpy.context.object.pose.bones[WRIST_LEFT].constraints["IK"].use_location = False
-
-	# bpy.context.object.pose.bones[ELBOW_RIGHT].constraints.new("DAMPED_TRACK")
-	# bpy.context.object.pose.bones[ELBOW_RIGHT].constraints["Damped Track"].target = bpy.context.active_object
-	# bpy.context.object.pose.bones[ELBOW_RIGHT].constraints["Damped Track"].subtarget = ARM_LEFT
-	# bpy.context.object.pose.bones[ELBOW_RIGHT].constraints["Damped Track"].track_axis = 'TRACK_Y'
-	# bpy.context.object.pose.bones[ELBOW_RIGHT].constraints["Damped Track"].name = "mmd_ik_target_override"
-
-	bpy.context.object.pose.bones[ELBOW_RIGHT].constraints.new("IK")
-	bpy.context.object.pose.bones[ELBOW_RIGHT].constraints["IK"].target = bpy.context.active_object
-	bpy.context.object.pose.bones[ELBOW_RIGHT].constraints["IK"].subtarget = "middle1_IK_R"
-	bpy.context.object.pose.bones[ELBOW_RIGHT].constraints["IK"].chain_count = 1
-	bpy.context.object.pose.bones[ELBOW_RIGHT].constraints["IK"].use_tail = True
-	bpy.context.object.pose.bones[ELBOW_RIGHT].constraints["IK"].iterations = 6
-	# bpy.context.object.pose.bones[WRIST_RIGHT].constraints["IK"].use_location = False
-
-	if hasattr(bpy.context.object.pose.bones[ARM_RIGHT], "mmd_bone"):
-		bpy.context.object.pose.bones[ARM_RIGHT].mmd_bone.ik_rotation_constraint = 2 # 180*2/math.pi
-		bpy.context.object.pose.bones[ARM_LEFT].mmd_bone.ik_rotation_constraint = 2 # 180*2/math.pi
-		bpy.context.object.pose.bones[ELBOW_RIGHT].mmd_bone.ik_rotation_constraint = 4 #180*4/math.pi
-		bpy.context.object.pose.bones[ELBOW_LEFT].mmd_bone.ik_rotation_constraint = 4 # 180*4/math.pi
-
-	#create an 'IK' bone group and add the IK bones to it
-	if 'IK' not in bpy.context.active_object.pose.bone_groups.keys():
-		bpy.context.active_object.pose.bone_groups.new(name="IK")
-
-	bpy.context.active_object.pose.bones["elbow_IK_L"].bone_group = bpy.context.active_object.pose.bone_groups['IK']
-	bpy.context.active_object.pose.bones["elbow_IK_R"].bone_group = bpy.context.active_object.pose.bone_groups['IK']
-	bpy.context.active_object.pose.bones["middle1_IK_L"].bone_group = bpy.context.active_object.pose.bone_groups['IK']
-	bpy.context.active_object.pose.bones["middle1_IK_R"].bone_group = bpy.context.active_object.pose.bone_groups['IK']
-	bpy.context.active_object.pose.bones["elbow_IK_L_t"].bone_group = bpy.context.active_object.pose.bone_groups['IK']
-	bpy.context.active_object.pose.bones["elbow_IK_R_t"].bone_group = bpy.context.active_object.pose.bone_groups['IK']
-	bpy.context.active_object.pose.bones["middle1_IK_L_t"].bone_group = bpy.context.active_object.pose.bone_groups['IK']
-	bpy.context.active_object.pose.bones["middle1_IK_R_t"].bone_group = bpy.context.active_object.pose.bone_groups['IK']
-
+    ik_bone_names = [
+        "elbow_IK_L", "elbow_IK_R", "middle1_IK_L", "middle1_IK_R",
+        "elbow_IK_L_t", "elbow_IK_R_t", "middle1_IK_L_t", "middle1_IK_R_t"
+    ]
+    for b_name in ik_bone_names:
+        if b_name in armature.pose.bones:
+            armature.pose.bones[b_name].bone_group = ik_group
 
 
 class Add_MMD_Hand_Arm_IK(bpy.types.Operator):
-	"""Add hand and arm IK bones and constraints to active MMD model"""
-	bl_idname = "object.add_hand_arm_ik"
-	bl_label = "Add Hand Arm IK to MMD model"
+    """Add hand and arm IK bones and constraints to active MMD model"""
+    bl_idname = "object.add_hand_arm_ik"
+    bl_label = "Add Hand Arm IK to MMD model"
+    bl_options = {'REGISTER', 'UNDO'}
 
-	@classmethod
-	def poll(cls, context):
-		return context.active_object is not None
+    @classmethod
+    def poll(cls, context):
+        return (context.active_object is not None 
+                and model.findArmature(context.active_object) is not None)
 
-	def execute(self, context):
-		clear_IK(context)
-		main(context)
-		return {'FINISHED'}
+    def execute(self, context):
+        try:
+            armature = model.findArmature(context.active_object)
+            armature_diagnostic(armature)
+            clear_IK(context)
+            main(context)
+            self.report({'INFO'}, "Successfully added hand/arm IK!")
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to add IK: {str(e)}")
+        return {'FINISHED'}
+
 
 def register():
-	bpy.utils.register_class(Add_MMD_Hand_Arm_IK)
-	bpy.utils.register_class(Add_MMD_Hand_Arm_IK_Panel)
+    bpy.utils.register_class(Add_MMD_Hand_Arm_IK)
+    bpy.utils.register_class(Add_MMD_Hand_Arm_IK_Panel)
 
 
 def unregister():
-	bpy.utils.unregister_class(Add_MMD_Hand_Arm_IK)
-	bpy.utils.unregister_class(Add_MMD_Hand_Arm_IK_Panel)
+    bpy.utils.unregister_class(Add_MMD_Hand_Arm_IK)
+    bpy.utils.unregister_class(Add_MMD_Hand_Arm_IK_Panel)
 
 
 if __name__ == "__main__":
-	register()
+    register()

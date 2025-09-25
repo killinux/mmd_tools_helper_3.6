@@ -12,7 +12,7 @@ bl_info = {
 	}
 
 import bpy
-
+print("init----》〉》")
 class MMDToolsHelperPanel(bpy.types.Panel):
 	"""Creates the MMD Tools Helper Panel in a VIEW_3D UI tab"""
 	bl_label = "MMD Tools Helper"
